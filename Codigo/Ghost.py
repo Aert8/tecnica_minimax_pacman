@@ -52,6 +52,9 @@ class Ghost:
         ]
         self.option = []
         self.dir_inv = 0
+        self.path_n = 0
+        self.state_tree = None
+        self.prev_pacman_xy = None
 
     def loadTextures(self, texturas, id):
         self.texturas = texturas
@@ -68,6 +71,221 @@ class Ghost:
         glTexCoord2f(1.0, 0.0)
         glVertex3f(x4, y4, z4)
         glEnd()
+
+    def _inverse_direction(self, direction):
+        return (direction + 2) % 4
+
+    def _is_inside_mc(self, x, y):
+        return 0 <= y < len(self.MC) and 0 <= x < len(self.MC[0])
+
+    def _direction_to_str(self, direction):
+        labels = {0: "UP", 1: "RIGHT", 2: "DOWN", 3: "LEFT"}
+        return labels.get(direction, "UNKNOWN")
+
+    def _estimate_pacman_direction(self, pacmanXY):
+        if self.prev_pacman_xy is None:
+            self.prev_pacman_xy = [pacmanXY[0], pacmanXY[2]]
+            return None
+
+        dx = pacmanXY[0] - self.prev_pacman_xy[0]
+        dz = pacmanXY[2] - self.prev_pacman_xy[1]
+        self.prev_pacman_xy = [pacmanXY[0], pacmanXY[2]]
+
+        if abs(dx) > abs(dz):
+            if dx > 0:
+                return 1
+            if dx < 0:
+                return 3
+        else:
+            if dz > 0:
+                return 2
+            if dz < 0:
+                return 0
+
+        return None
+
+    def _pixel_to_mc(self, px, pz):
+        x_idx = px - 20
+        y_idx = pz - 20
+        if ((x_idx < 0) or (x_idx >= len(self.XPxToMC)) or
+            (y_idx < 0) or (y_idx >= len(self.YPxToMC))):
+            return None
+
+        x_mc = self.XPxToMC[x_idx]
+        y_mc = self.YPxToMC[y_idx]
+        if (x_mc == -1) or (y_mc == -1):
+            return None
+
+        return [x_mc, y_mc]
+
+    def _project_pixel_to_mc(self, px, pz, direction):
+        mapped = self._pixel_to_mc(px, pz)
+        if mapped is not None:
+            return mapped
+
+        deltas = {0: (0, -1), 1: (1, 0), 2: (0, 1), 3: (-1, 0)}
+        directions = [direction] if direction in deltas else [0, 1, 2, 3]
+
+        for dir_candidate in directions:
+            dx, dz = deltas[dir_candidate]
+            test_x = px
+            test_z = pz
+
+            for _ in range(max(len(self.XPxToMC), len(self.YPxToMC))):
+                test_x += dx
+                test_z += dz
+                mapped = self._pixel_to_mc(test_x, test_z)
+                if mapped is not None:
+                    return mapped
+
+        return None
+
+    def _get_cell_options(self, cell_id, current_dir):
+        options_by_cell = {
+            10: [1, 2],
+            11: [2, 3],
+            12: [0, 1],
+            13: [0, 3],
+            21: [1, 2, 3],
+            22: [0, 2, 3],
+            23: [0, 1, 3],
+            24: [0, 1, 2],
+            25: [0, 1, 2, 3],
+            26: [1],
+            27: [3]
+        }
+
+        if cell_id == 0:
+            return [] if current_dir is None else [current_dir]
+
+        return list(options_by_cell.get(cell_id, []))
+
+    def _get_available_directions(self, mc_x, mc_y, current_dir, avoid_immediate_reverse):
+        cell_id = self.MC[mc_y][mc_x]
+        dirs = self._get_cell_options(cell_id, current_dir)
+
+        if avoid_immediate_reverse and len(dirs) > 1 and current_dir is not None:
+            inv_dir = self._inverse_direction(current_dir)
+            if inv_dir in dirs:
+                dirs.remove(inv_dir)
+
+        return dirs
+
+    def _advance_to_next_true_intersection(self, start_x, start_y, direction):
+        deltas = {0: (0, -1), 1: (1, 0), 2: (0, 1), 3: (-1, 0)}
+        if direction not in deltas:
+            return None
+
+        dx, dy = deltas[direction]
+        x = start_x
+        y = start_y
+        steps = 0
+
+        while True:
+            x += dx
+            y += dy
+            steps += 1
+
+            if not self._is_inside_mc(x, y):
+                return None
+
+            if self.MC[y][x] != 0:
+                return [x, y, steps]
+
+    def _expand_state_tree(self, node, max_depth):
+        if node["depth"] >= max_depth:
+            return
+
+        # Se fuerza que el turno actual siempre sea MAX o MIN.
+        # Cualquier valor inesperado se interpreta como MAX.
+        current_turn = "MIN" if node.get("turn") == "MIN" else "MAX"
+        next_turn = "MIN" if current_turn == "MAX" else "MAX"
+
+        if current_turn == "MAX":
+            actor = node["ghost"]
+            avoid_reverse = True
+        else:
+            actor = node["pacman"]
+            avoid_reverse = False
+
+        available_dirs = self._get_available_directions(
+            actor["x"], actor["y"], actor["dir"], avoid_reverse
+        )
+
+        for direction in available_dirs:
+            next_state = self._advance_to_next_true_intersection(
+                actor["x"], actor["y"], direction
+            )
+
+            if next_state is None:
+                continue
+
+            next_x, next_y, steps = next_state
+
+            child_ghost = dict(node["ghost"])
+            child_pacman = dict(node["pacman"])
+
+            if current_turn == "MAX":
+                child_ghost["x"] = next_x
+                child_ghost["y"] = next_y
+                child_ghost["dir"] = direction
+            else:
+                child_pacman["x"] = next_x
+                child_pacman["y"] = next_y
+                child_pacman["dir"] = direction
+
+            child_node = {
+                "depth": node["depth"] + 1,
+                "turn": next_turn,
+                "actor": current_turn,
+                "move_dir": direction,
+                "move_label": self._direction_to_str(direction),
+                "travel_steps": steps,
+                "ghost": child_ghost,
+                "pacman": child_pacman,
+                "children": []
+            }
+
+            node["children"].append(child_node)
+            self._expand_state_tree(child_node, max_depth)
+
+    def generar_arbol_estados(self, pacmanXY, max_depth=4, pacman_dir=None):
+        ghost_mc = self._pixel_to_mc(self.position[0], self.position[2])
+        if ghost_mc is None:
+            return None
+
+        if pacman_dir is None:
+            pacman_dir = self._estimate_pacman_direction(pacmanXY)
+
+        pacman_mc = self._project_pixel_to_mc(pacmanXY[0], pacmanXY[2], pacman_dir)
+        if pacman_mc is None:
+            return None
+
+        # La raiz siempre inicia con MAX: el fantasma mueve primero.
+        root_turn = "MAX"
+
+        root = {
+            "depth": 0,
+            "turn": root_turn,
+            "actor": None,
+            "move_dir": None,
+            "move_label": None,
+            "travel_steps": 0,
+            "ghost": {
+                "x": ghost_mc[0],
+                "y": ghost_mc[1],
+                "dir": self.direction
+            },
+            "pacman": {
+                "x": pacman_mc[0],
+                "y": pacman_mc[1],
+                "dir": pacman_dir
+            },
+            "children": []
+        }
+
+        self._expand_state_tree(root, max_depth)
+        return root
    
     def sigue_adelante(self):
         #si el fantasma esta en un tunel, no es necesario calcular la siguiente posicion a traves del path
@@ -86,6 +304,8 @@ class Ghost:
         
     def path_ia(self,pacmanXY):
         # bloque para implementar la IA en los fantasmas
+        self.state_tree = self.generar_arbol_estados(pacmanXY)
+        print(self.state_tree)
         self.interseccion_random()            
         
     def interseccion_random(self):
