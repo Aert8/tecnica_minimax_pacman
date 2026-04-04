@@ -255,7 +255,7 @@ class Ghost:
             node["children"].append(child_node)
             self._expand_state_tree(child_node, max_depth)
 
-    def generar_arbol_estados(self, pacmanXY, max_depth=8, pacman_dir=None):
+    def generar_arbol_estados(self, pacmanXY, max_depth=3, pacman_dir=None):
         ghost_mc = self._pixel_to_mc(self.position[0], self.position[2])
         if ghost_mc is None:
             return None

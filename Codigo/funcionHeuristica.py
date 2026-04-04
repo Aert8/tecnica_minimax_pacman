@@ -1,8 +1,12 @@
 
+import math
+
+
 class FuncionHeuristica:
-    def __init__(self, max_depth, peso_h=0.7, peso_g=0.3):
-        self.peso_h = float(peso_h)
+    def __init__(self, max_depth, peso_h1=0.5, peso_g=0.1, peso_h2=0.4):
+        self.peso_h1 = float(peso_h1)
         self.peso_g = float(peso_g)
+        self.peso_h2 = float(peso_h2)
         self.max_depth = max_depth
 
     def distancia_manhattan(self, ghost_x, ghost_y, pacman_x, pacman_y):
@@ -23,6 +27,23 @@ class FuncionHeuristica:
 
         return -float(distancia) / max_distancia
 
+    def h_euclidiana(self, ghost_x, ghost_y, pacman_x, pacman_y):
+        """
+        h2(n): distancia euclidiana entre fantasma y pacman.
+        Se invierte a negativo para que MAX favorezca distancia minima.
+        """
+        distancia = math.sqrt(((ghost_x - pacman_x) ** 2) + ((ghost_y - pacman_y) ** 2))
+        return -distancia
+
+    def h_euclidiana_normalizada(self, ghost_x, ghost_y, pacman_x, pacman_y):
+        """
+        h2(n): distancia euclidiana normalizada entre fantasma y pacman.
+        Se invierte a negativo para que MAX favorezca distancia minima.
+        """
+        max_distancia = 12.727922061357855
+        distancia = math.sqrt(((ghost_x - pacman_x) ** 2) + ((ghost_y - pacman_y) ** 2))
+        return -float(distancia) / max_distancia
+
     def movimientos_fantasma(self, movimientos_fantasma):
         """
         g(n): numero de movimientos del fantasma.
@@ -39,11 +60,16 @@ class FuncionHeuristica:
 
     def evaluar(self, ghost_x, ghost_y, pacman_x, pacman_y, movimientos_fantasma):
         """
-        f(n) = peso_h * h(n) + peso_g * g(n)
+        f(n) = peso_h1 * h_manhattan(n) + peso_h2 * h_euclidiana(n) + peso_g * g(n)
         """
-        h_n = self.distancia_manhattan_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
+        h1_n = self.distancia_manhattan_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
+        h2_n = self.h_euclidiana_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
         g_n = self.movimientos_fantasma_normalizados(movimientos_fantasma)
-        return (self.peso_h * h_n) + (self.peso_g * g_n)
+        return (
+            (self.peso_h1 * h1_n) +
+            (self.peso_h2 * h2_n) +
+            (self.peso_g * g_n)
+        )
 
     def evaluar_nodo(self, nodo, movimientos_fantasma):
         """
