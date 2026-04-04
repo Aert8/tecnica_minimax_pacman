@@ -127,7 +127,10 @@ class Ghost:
             return mapped
 
         deltas = {0: (0, -1), 1: (1, 0), 2: (0, 1), 3: (-1, 0)}
-        directions = [direction] if direction in deltas else [0, 1, 2, 3]
+        if direction in deltas:
+            directions = [direction] + [d for d in [0, 1, 2, 3] if d != direction]
+        else:
+            directions = [0, 1, 2, 3]
 
         for dir_candidate in directions:
             dx, dz = deltas[dir_candidate]
@@ -252,7 +255,7 @@ class Ghost:
             node["children"].append(child_node)
             self._expand_state_tree(child_node, max_depth)
 
-    def generar_arbol_estados(self, pacmanXY, max_depth=4, pacman_dir=None):
+    def generar_arbol_estados(self, pacmanXY, max_depth=8, pacman_dir=None):
         ghost_mc = self._pixel_to_mc(self.position[0], self.position[2])
         if ghost_mc is None:
             return None
@@ -305,9 +308,9 @@ class Ghost:
         if self.tipo == 1: #fantasma inteligente
             self.path_n += 1
         
-    def path_ia(self,pacmanXY):
+    def path_ia(self,pacmanXY, pacmanDir=None):
         # bloque para implementar la IA en los fantasmas
-        self.state_tree = self.generar_arbol_estados(pacmanXY)
+        self.state_tree = self.generar_arbol_estados(pacmanXY, pacman_dir=pacmanDir)
 
         if self.state_tree is None:
             print("No se pudo generar el árbol de estados. Se elige movimiento aleatorio.")
@@ -406,12 +409,12 @@ class Ghost:
         if (celId != 0) and (celId != 26) and (celId != 27):
             self.option.append(self.dir_inv)    
     
-    def update2(self,pacmanXY):
+    def update2(self,pacmanXY, pacmanDir=None):
         #si el fantasma se encuentra en una interseccion (valida o "falsa interseccion")
         if ((self.YPxToMC[self.position[2] - 20] != -1) and 
             (self.XPxToMC[self.position[0] - 20] != -1)):
             if self.tipo == 1: #agente inteligente, se manda la posición del objetivo
-                self.path_ia(pacmanXY)
+                self.path_ia(pacmanXY, pacmanDir)
             else:
                 self.interseccion_random()
         else: #si no se encuentra en una interseccion o es falsa interseccion

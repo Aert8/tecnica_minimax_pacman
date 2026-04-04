@@ -240,7 +240,7 @@ def display():
     pc.draw()
     for g in ghosts:
         g.draw()
-        g.update2(pc.position)
+        g.update2(pc.position, pc.direction)
     
 done = False
 Init()
