@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 import random
+from PodaAB import poda_alpha_beta
 
 class Ghost:
     def __init__(self,mapa, mc, x_mc, y_mc, xini, yini, dir, tipo):
@@ -55,6 +56,8 @@ class Ghost:
         self.path_n = 0
         self.state_tree = None
         self.prev_pacman_xy = None
+        self.last_ab_value = None
+        self.last_ab_prunes = 0
 
     def loadTextures(self, texturas, id):
         self.texturas = texturas
@@ -305,8 +308,38 @@ class Ghost:
     def path_ia(self,pacmanXY):
         # bloque para implementar la IA en los fantasmas
         self.state_tree = self.generar_arbol_estados(pacmanXY)
-        print(self.state_tree)
-        self.interseccion_random()            
+
+        if self.state_tree is None:
+            print("No se pudo generar el árbol de estados. Se elige movimiento aleatorio.")
+            self.interseccion_random()
+            return
+
+        if len(self.state_tree.get("children", [])) == 0:
+            print("El árbol de estados no tiene hijos. Se elige movimiento aleatorio.")
+            self.interseccion_random()
+            return
+
+        motor_ab = poda_alpha_beta(self.state_tree)
+        mejor_hijo, mejor_valor = motor_ab.mejor_hijo_raiz()
+        self.last_ab_value = mejor_valor
+        self.last_ab_prunes = motor_ab.podas
+
+        if (mejor_hijo is None) or (mejor_hijo.get("move_dir") is None):
+            print("No se pudo determinar el mejor movimiento. Se elige movimiento aleatorio.")
+            self.interseccion_random()
+            return
+
+        # Solo se aplica la direccion elegida; el movimiento fisico se mantiene pixel a pixel.
+        self.direction = mejor_hijo["move_dir"]
+
+        if self.direction == 0:
+            self.position[2] -= 1
+        elif self.direction == 1:
+            self.position[0] += 1
+        elif self.direction == 2:
+            self.position[2] += 1
+        elif self.direction == 3:
+            self.position[0] -= 1
         
     def interseccion_random(self):
         #se determina en que tipo de celda esta el fantasma
