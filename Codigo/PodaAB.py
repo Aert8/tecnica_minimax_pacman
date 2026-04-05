@@ -35,6 +35,15 @@ class poda_alpha_beta:
         if self.profundidad_maxima is not None:
             if nodo.get("depth", 0) >= self.profundidad_maxima:
                 return True
+        # ---------------------------------------------------------
+        # NUEVO: Si atrapó a pacman, es un nodo terminal absoluto
+        # sin importar en qué profundidad estemos.
+        # ---------------------------------------------------------
+        ghost = nodo.get("ghost", {})
+        pacman = nodo.get("pacman", {})
+        if ghost and pacman:
+            if ghost.get("x") == pacman.get("x") and ghost.get("y") == pacman.get("y"):
+                return True
 
         hijos = nodo.get("children", [])
         return len(hijos) == 0
@@ -59,7 +68,7 @@ class poda_alpha_beta:
                 # alpha <- max(alpha, ab(Jk, alpha, beta))
                 alpha = max(alpha, self._ab(hijo, alpha, beta))
 
-                # Si alpha >= beta, devolver beta (segun pseudocodigo adjunto)
+                # Si alpha >= beta, devolver beta
                 if alpha >= beta:
                     self.podas += 1
                     nodo["ab_value"] = beta

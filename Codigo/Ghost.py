@@ -201,6 +201,13 @@ class Ghost:
     def _expand_state_tree(self, node, max_depth):
         if node["depth"] >= max_depth:
             return
+        # ---------------------------------------------------------
+        # NUEVO: Condición de paro por captura (Estado Terminal)
+        # Si el fantasma y pacman están en la misma coordenada, 
+        # el juego terminó. Ya no generamos más hijos.
+        # ---------------------------------------------------------
+        if node["ghost"]["x"] == node["pacman"]["x"] and node["ghost"]["y"] == node["pacman"]["y"]:
+            return
 
         # Se fuerza que el turno actual siempre sea MAX o MIN.
         # Cualquier valor inesperado se interpreta como MAX.
@@ -255,7 +262,7 @@ class Ghost:
             node["children"].append(child_node)
             self._expand_state_tree(child_node, max_depth)
 
-    def generar_arbol_estados(self, pacmanXY, max_depth=3, pacman_dir=None):
+    def generar_arbol_estados(self, pacmanXY, max_depth=6, pacman_dir=None):
         ghost_mc = self._pixel_to_mc(self.position[0], self.position[2])
         if ghost_mc is None:
             return None
@@ -313,12 +320,12 @@ class Ghost:
         self.state_tree = self.generar_arbol_estados(pacmanXY, pacman_dir=pacmanDir)
 
         if self.state_tree is None:
-            print("No se pudo generar el árbol de estados. Se elige movimiento aleatorio.")
+            #print("No se pudo generar el árbol de estados. Se elige movimiento aleatorio.")
             self.interseccion_random()
             return
 
         if len(self.state_tree.get("children", [])) == 0:
-            print("El árbol de estados no tiene hijos. Se elige movimiento aleatorio.")
+            #print("El árbol de estados no tiene hijos. Se elige movimiento aleatorio.")
             self.interseccion_random()
             return
 
@@ -410,6 +417,10 @@ class Ghost:
             self.option.append(self.dir_inv)    
     
     def update2(self,pacmanXY, pacmanDir=None):
+        #Compobamos que el fantasma atrapo a pacman
+        #if (self.position[0] == pacmanXY[0]) and (self.position[2] == pacmanXY[2]):
+            #print("Pacman atrapado por el fantasma!")
+
         #si el fantasma se encuentra en una interseccion (valida o "falsa interseccion")
         if ((self.YPxToMC[self.position[2] - 20] != -1) and 
             (self.XPxToMC[self.position[0] - 20] != -1)):
