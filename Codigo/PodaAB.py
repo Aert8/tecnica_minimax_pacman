@@ -1,10 +1,12 @@
 import math
 from funcionHeuristica import FuncionHeuristica
+from funcionHeuristicaManada import FuncionHeuristica as FuncionHeuristicaManada
 
 
 class poda_alpha_beta:
     def __init__(self, arbol_completo, profundidad_maxima=None, heuristica=None):
         self.arbol = arbol_completo
+        self.modo_manada = self._es_arbol_manada(arbol_completo)
         self.profundidad_maxima = (
             profundidad_maxima
             if profundidad_maxima is not None
@@ -13,9 +15,27 @@ class poda_alpha_beta:
         self.heuristica = (
             heuristica
             if heuristica is not None
-            else FuncionHeuristica(max_depth=max(1, self.profundidad_maxima))
+            else self._crear_heuristica_por_modo()
         )
         self.podas = 0
+
+    def _es_arbol_manada(self, nodo):
+        if nodo is None:
+            return False
+
+        if "ghosts" in nodo:
+            return True
+
+        hijos = nodo.get("children", [])
+        for hijo in hijos:
+            if self._es_arbol_manada(hijo):
+                return True
+
+        return False
+
+    def _crear_heuristica_por_modo(self):
+        heuristica_cls = FuncionHeuristicaManada if self.modo_manada else FuncionHeuristica
+        return heuristica_cls(max_depth=max(1, self.profundidad_maxima))
 
     def _inferir_profundidad_maxima(self, nodo):
         if nodo is None:
@@ -39,8 +59,14 @@ class poda_alpha_beta:
         # NUEVO: Si atrapó a pacman, es un nodo terminal absoluto
         # sin importar en qué profundidad estemos.
         # ---------------------------------------------------------
+        ghosts = nodo.get("ghosts", [])
         ghost = nodo.get("ghost", {})
         pacman = nodo.get("pacman", {})
+        if len(ghosts) > 0:
+            for ghost_state in ghosts:
+                if ghost_state.get("x") == pacman.get("x") and ghost_state.get("y") == pacman.get("y"):
+                    return True
+
         if ghost and pacman:
             if ghost.get("x") == pacman.get("x") and ghost.get("y") == pacman.get("y"):
                 return True

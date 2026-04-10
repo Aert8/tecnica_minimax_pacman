@@ -121,8 +121,8 @@ grid = []
 pc = Pacman(matrix, MC, XPxToMC, YPxToMC)
 #fantasmas
 ghosts = []
-ghosts.append(Ghost(matrix, MC, XPxToMC, YPxToMC, 378, 380, 2, 0))
-ghosts.append(Ghost(matrix, MC, XPxToMC, YPxToMC, 20, 380, 3, 0))
+ghosts.append(Ghost(matrix, MC, XPxToMC, YPxToMC, 378, 380, 2, 2))
+ghosts.append(Ghost(matrix, MC, XPxToMC, YPxToMC, 20, 380, 3, 2))
 ghosts.append(Ghost(matrix, MC, XPxToMC, YPxToMC, 378, 20, 0, 1))
 ghosts.append(Ghost(matrix, MC, XPxToMC, YPxToMC, 20, 380, 3, 0))
 
@@ -238,9 +238,13 @@ def display():
     Axis()
     PlanoTexturizado()
     pc.draw()
-    for g in ghosts:
+    manada_fantasmas = [g for g in ghosts if g.tipo == 2]
+    for index, g in enumerate(ghosts):
         g.draw()
-        g.update2(pc.position, pc.direction)
+        if g.tipo == 2:
+            g.update2(pc.position, pc.direction, manada_fantasmas)
+        else:
+            g.update2(pc.position, pc.direction)
     
 done = False
 Init()

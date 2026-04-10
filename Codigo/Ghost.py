@@ -146,6 +146,16 @@ class Ghost:
 
         return None
 
+    def _extraer_estado_entidad(self, entidad):
+        if isinstance(entidad, dict):
+            posicion = entidad.get("position")
+            direccion = entidad.get("direction")
+        else:
+            posicion = getattr(entidad, "position", None)
+            direccion = getattr(entidad, "direction", None)
+
+        return posicion, direccion
+
     def _get_cell_options(self, cell_id, current_dir):
         options_by_cell = {
             10: [1, 2],
@@ -262,6 +272,68 @@ class Ghost:
             node["children"].append(child_node)
             self._expand_state_tree(child_node, max_depth)
 
+    def _expand_state_tree_manada(self, node, max_depth):
+        if node["depth"] >= max_depth:
+            return
+
+        if any(
+            ghost["x"] == node["pacman"]["x"] and ghost["y"] == node["pacman"]["y"]
+            for ghost in node["ghosts"]
+        ):
+            return
+
+        actor_stage = node["depth"] % 3
+        current_turn = "MAX" if actor_stage in (0, 1) else "MIN"
+        next_turn = "MAX" if ((node["depth"] + 1) % 3) in (0, 1) else "MIN"
+
+        if actor_stage in (0, 1):
+            actor = node["ghosts"][actor_stage]
+            avoid_reverse = True
+        else:
+            actor = node["pacman"]
+            avoid_reverse = False
+
+        available_dirs = self._get_available_directions(
+            actor["x"], actor["y"], actor["dir"], avoid_reverse
+        )
+
+        for direction in available_dirs:
+            next_state = self._advance_to_next_true_intersection(
+                actor["x"], actor["y"], direction
+            )
+
+            if next_state is None:
+                continue
+
+            next_x, next_y, steps = next_state
+
+            child_ghosts = [dict(node["ghosts"][0]), dict(node["ghosts"][1])]
+            child_pacman = dict(node["pacman"])
+
+            if actor_stage in (0, 1):
+                child_ghosts[actor_stage]["x"] = next_x
+                child_ghosts[actor_stage]["y"] = next_y
+                child_ghosts[actor_stage]["dir"] = direction
+            else:
+                child_pacman["x"] = next_x
+                child_pacman["y"] = next_y
+                child_pacman["dir"] = direction
+
+            child_node = {
+                "depth": node["depth"] + 1,
+                "turn": next_turn,
+                "actor": current_turn,
+                "move_dir": direction,
+                "move_label": self._direction_to_str(direction),
+                "travel_steps": steps,
+                "ghosts": child_ghosts,
+                "pacman": child_pacman,
+                "children": []
+            }
+
+            node["children"].append(child_node)
+            self._expand_state_tree_manada(child_node, max_depth)
+
     def generar_arbol_estados(self, pacmanXY, max_depth=6, pacman_dir=None):
         ghost_mc = self._pixel_to_mc(self.position[0], self.position[2])
         if ghost_mc is None:
@@ -298,6 +370,69 @@ class Ghost:
         }
 
         self._expand_state_tree(root, max_depth)
+        return root
+
+    def generar_arbol_estados_manada(self, pacmanXY, manada_fantasmas, indice_grupo=None, max_depth=6, pacman_dir=None):
+        if manada_fantasmas is None or len(manada_fantasmas) < 2:
+            return None
+
+        if indice_grupo is None:
+            if self not in manada_fantasmas:
+                return None
+            indice_grupo = manada_fantasmas.index(self)
+
+        if indice_grupo not in (0, 1):
+            return None
+
+        if pacman_dir is None:
+            pacman_dir = self._estimate_pacman_direction(pacmanXY)
+
+        pacman_mc = self._project_pixel_to_mc(pacmanXY[0], pacmanXY[2], pacman_dir)
+        if pacman_mc is None:
+            return None
+
+        teammate_index = 1 - indice_grupo
+        teammate_estado = manada_fantasmas[teammate_index]
+        teammate_posicion, teammate_direccion = self._extraer_estado_entidad(teammate_estado)
+        if teammate_posicion is None:
+            return None
+
+        ghost_mc = self._project_pixel_to_mc(self.position[0], self.position[2], self.direction)
+        teammate_mc = self._project_pixel_to_mc(
+            teammate_posicion[0], teammate_posicion[2], teammate_direccion
+        )
+
+        if ghost_mc is None or teammate_mc is None:
+            return None
+
+        root = {
+            "depth": 0,
+            "turn": "MAX",
+            "actor": None,
+            "move_dir": None,
+            "move_label": None,
+            "travel_steps": 0,
+            "ghosts": [
+                {
+                    "x": ghost_mc[0],
+                    "y": ghost_mc[1],
+                    "dir": self.direction
+                },
+                {
+                    "x": teammate_mc[0],
+                    "y": teammate_mc[1],
+                    "dir": teammate_direccion
+                }
+            ],
+            "pacman": {
+                "x": pacman_mc[0],
+                "y": pacman_mc[1],
+                "dir": pacman_dir
+            },
+            "children": []
+        }
+
+        self._expand_state_tree_manada(root, max_depth)
         return root
    
     def sigue_adelante(self):
@@ -350,7 +485,42 @@ class Ghost:
             self.position[2] += 1
         elif self.direction == 3:
             self.position[0] -= 1
-        
+
+    def path_ia_manada(self, pacmanXY, pacmanDir=None, manada_fantasmas=None, indice_grupo=None):
+        self.state_tree = self.generar_arbol_estados_manada(
+            pacmanXY,
+            manada_fantasmas,
+            indice_grupo=indice_grupo,
+            pacman_dir=pacmanDir,
+        )
+
+        if self.state_tree is None:
+            self.interseccion_random()
+            return
+
+        if len(self.state_tree.get("children", [])) == 0:
+            self.interseccion_random()
+            return
+
+        motor_ab = poda_alpha_beta(self.state_tree)
+        mejor_hijo, mejor_valor = motor_ab.mejor_hijo_raiz()
+        self.last_ab_value = mejor_valor
+        self.last_ab_prunes = motor_ab.podas
+
+        if (mejor_hijo is None) or (mejor_hijo.get("move_dir") is None):
+            self.interseccion_random()
+            return
+
+        self.direction = mejor_hijo["move_dir"]
+
+        if self.direction == 0:
+            self.position[2] -= 1
+        elif self.direction == 1:
+            self.position[0] += 1
+        elif self.direction == 2:
+            self.position[2] += 1
+        elif self.direction == 3:
+            self.position[0] -= 1
     def interseccion_random(self):
         #se determina en que tipo de celda esta el fantasma
         self.positionMC[0] = self.XPxToMC[self.position[0] - 20]
@@ -416,7 +586,7 @@ class Ghost:
         if (celId != 0) and (celId != 26) and (celId != 27):
             self.option.append(self.dir_inv)    
     
-    def update2(self,pacmanXY, pacmanDir=None):
+    def update2(self,pacmanXY, pacmanDir=None, manada_fantasmas=None, indice_grupo=None):
         #Compobamos que el fantasma atrapo a pacman
         #if (self.position[0] == pacmanXY[0]) and (self.position[2] == pacmanXY[2]):
             #print("Pacman atrapado por el fantasma!")
@@ -424,7 +594,11 @@ class Ghost:
         #si el fantasma se encuentra en una interseccion (valida o "falsa interseccion")
         if ((self.YPxToMC[self.position[2] - 20] != -1) and 
             (self.XPxToMC[self.position[0] - 20] != -1)):
-            if self.tipo == 1: #agente inteligente, se manda la posición del objetivo
+            if (manada_fantasmas is not None) and (len(manada_fantasmas) >= 2):
+                self.path_ia_manada(pacmanXY, pacmanDir, manada_fantasmas, indice_grupo)
+            elif self.tipo == 1: #agente inteligente, se manda la posición del objetivo
+                self.path_ia(pacmanXY, pacmanDir)
+            elif self.tipo == 2: #agentes en manada
                 self.path_ia(pacmanXY, pacmanDir)
             else:
                 self.interseccion_random()

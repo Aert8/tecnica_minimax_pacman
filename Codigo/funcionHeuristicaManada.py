@@ -1,4 +1,3 @@
-
 import math
 
 
@@ -44,27 +43,12 @@ class FuncionHeuristica:
         distancia = math.sqrt(((ghost_x - pacman_x) ** 2) + ((ghost_y - pacman_y) ** 2))
         return -float(distancia) / max_distancia
 
-    def movimientos_fantasma(self, movimientos_fantasma):
-        """
-        g(n): numero de movimientos del fantasma.
-        Se invierte a negativo para que MAX favorezca menos movimientos.
-        """
-        return -float((movimientos_fantasma//2)+1)
-    
-    def movimientos_fantasma_normalizados(self, movimientos_fantasma):
-        """
-        g(n): numero de movimientos del fantasma normalizado.
-        Se invierte a negativo para que MAX favorezca menos movimientos.
-        """
-        return -float((movimientos_fantasma//2)+1) / self.max_depth
-
     def evaluar(self, ghost_x, ghost_y, pacman_x, pacman_y, movimientos_fantasma):
         """
         f(n) = peso_h1 * h_manhattan(n) + peso_h2 * h_euclidiana(n) + peso_g * g(n)
         """
         h1_n = self.distancia_manhattan_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
         h2_n = self.h_euclidiana_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
-        #g_n = self.movimientos_fantasma_normalizados(movimientos_fantasma)
         return (
             (self.peso_h1 * h1_n) +
             (self.peso_h2 * h2_n)
@@ -72,11 +56,28 @@ class FuncionHeuristica:
 
     def evaluar_nodo(self, nodo, movimientos_fantasma):
         """
-        Atajo para evaluar un nodo con estructura:
-        nodo["ghost"]["x"], nodo["ghost"]["y"], nodo["pacman"]["x"], nodo["pacman"]["y"].
+        Atajo para evaluar un nodo con estructura de un fantasma o de manada.
         """
-        ghost = nodo["ghost"]
         pacman = nodo["pacman"]
+
+        if "ghosts" in nodo:
+            ghosts = nodo["ghosts"]
+            if len(ghosts) == 0:
+                return 0.0
+
+            valores = [
+                self.evaluar(
+                    ghost["x"],
+                    ghost["y"],
+                    pacman["x"],
+                    pacman["y"],
+                    movimientos_fantasma,
+                )
+                for ghost in ghosts
+            ]
+            return sum(valores) / float(len(valores))
+
+        ghost = nodo["ghost"]
         return self.evaluar(
             ghost["x"],
             ghost["y"],
