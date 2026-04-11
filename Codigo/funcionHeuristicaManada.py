@@ -2,9 +2,8 @@ import math
 
 
 class FuncionHeuristica:
-    def __init__(self, max_depth, peso_h1=0.5, peso_g=0.1, peso_h2=0.5):
+    def __init__(self, max_depth, peso_h1=0.5, peso_h2=0.5):
         self.peso_h1 = float(peso_h1)
-        self.peso_g = float(peso_g)
         self.peso_h2 = float(peso_h2)
         self.max_depth = max_depth
 

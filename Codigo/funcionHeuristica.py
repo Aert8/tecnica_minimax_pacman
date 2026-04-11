@@ -3,9 +3,8 @@ import math
 
 
 class FuncionHeuristica:
-    def __init__(self, max_depth, peso_h1=0.5, peso_g=0.1, peso_h2=0.5):
+    def __init__(self, max_depth, peso_h1=0.5, peso_h2=0.5):
         self.peso_h1 = float(peso_h1)
-        self.peso_g = float(peso_g)
         self.peso_h2 = float(peso_h2)
         self.max_depth = max_depth
 
@@ -44,27 +43,12 @@ class FuncionHeuristica:
         distancia = math.sqrt(((ghost_x - pacman_x) ** 2) + ((ghost_y - pacman_y) ** 2))
         return -float(distancia) / max_distancia
 
-    def movimientos_fantasma(self, movimientos_fantasma):
-        """
-        g(n): numero de movimientos del fantasma.
-        Se invierte a negativo para que MAX favorezca menos movimientos.
-        """
-        return -float((movimientos_fantasma//2)+1)
-    
-    def movimientos_fantasma_normalizados(self, movimientos_fantasma):
-        """
-        g(n): numero de movimientos del fantasma normalizado.
-        Se invierte a negativo para que MAX favorezca menos movimientos.
-        """
-        return -float((movimientos_fantasma//2)+1) / self.max_depth
-
     def evaluar(self, ghost_x, ghost_y, pacman_x, pacman_y, movimientos_fantasma):
         """
         f(n) = peso_h1 * h_manhattan(n) + peso_h2 * h_euclidiana(n) + peso_g * g(n)
         """
         h1_n = self.distancia_manhattan_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
         h2_n = self.h_euclidiana_normalizada(ghost_x, ghost_y, pacman_x, pacman_y)
-        #g_n = self.movimientos_fantasma_normalizados(movimientos_fantasma)
         return (
             (self.peso_h1 * h1_n) +
             (self.peso_h2 * h2_n)

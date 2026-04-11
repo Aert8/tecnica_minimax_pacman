@@ -212,7 +212,6 @@ class Ghost:
         if node["depth"] >= max_depth:
             return
         # ---------------------------------------------------------
-        # NUEVO: Condición de paro por captura (Estado Terminal)
         # Si el fantasma y pacman están en la misma coordenada, 
         # el juego terminó. Ya no generamos más hijos.
         # ---------------------------------------------------------
