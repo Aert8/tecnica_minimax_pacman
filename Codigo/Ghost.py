@@ -463,7 +463,7 @@ class Ghost:
             self.interseccion_random()
             return
 
-        motor_ab = poda_alpha_beta(self.state_tree)
+        motor_ab = poda_alpha_beta(self.state_tree, generador=self)
         mejor_hijo, mejor_valor = motor_ab.mejor_hijo_raiz()
         self.last_ab_value = mejor_valor
         self.last_ab_prunes = motor_ab.podas
@@ -501,7 +501,7 @@ class Ghost:
             self.interseccion_random()
             return
 
-        motor_ab = poda_alpha_beta(self.state_tree)
+        motor_ab = poda_alpha_beta(self.state_tree, generador=self)
         mejor_hijo, mejor_valor = motor_ab.mejor_hijo_raiz()
         self.last_ab_value = mejor_valor
         self.last_ab_prunes = motor_ab.podas
